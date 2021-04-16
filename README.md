@@ -1,3 +1,14 @@
+# Yosys-IFT
+
+This is a copy of the [original Yosys Github repository](https://github.com/YosysHQ/yosys/).
+
+It implements a new pass called `glift` that adds Gate-Level InFormation Tracking logic and registers.
+When given a `RTLIL::Process`, this pass performs a `RTLIFT` pass on the decision tree, coloring all implicit and explicit conditions.
+To enforce `GLIFT` in place of `RTLIFT`, consider using the `proc` Yosys pass before calling the `glift` pass.
+
+
+Below is the original Readme.
+
 ```
 yosys -- Yosys Open SYnthesis Suite
 
