@@ -294,7 +294,7 @@ struct CellIFTWorker {
 			else if (cell->type.in(ID($xor), ID($_XOR_), ID($_XNOR_)))
 				keep_current_cell = cellift_xor(module, cell, num_taints, excluded_signals);
 
-			else if (cell->type.in(ID($eq), ID($ne)))
+			else if (cell->type.in(ID($eq), ID($eqx), ID($ne)))
 				if (opt_conjunctive_cells_pool.find("eq-ne") != opt_conjunctive_cells_pool.end())
 					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
 				else
