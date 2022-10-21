@@ -22,9 +22,7 @@ bool cellift_logic_and(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int nu
     for (unsigned int i = 0; i < NUM_PORTS; ++i)
         port_taints[i] = get_corresponding_taint_signals(module, excluded_signals, ports[i], num_taints);
 
-    int data_size = ports[A].size();
-
-    if (data_size == 1) // Equivalent to traditional and operator.
+    if (ports[A].size() == 1 && ports[B].size() == 1) // Equivalent to traditional and operator.
         for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
             RTLIL::SigSpec a_taint_and_b = module->And(NEW_ID, port_taints[A][taint_id], ports[B]);
             RTLIL::SigSpec b_taint_and_a = module->And(NEW_ID, port_taints[B][taint_id], ports[A]);

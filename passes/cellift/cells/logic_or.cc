@@ -19,16 +19,10 @@ bool cellift_logic_or(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num
     RTLIL::SigSpec ports[NUM_PORTS] = {cell->getPort(ID::A), cell->getPort(ID::B), cell->getPort(ID::Y)};
     std::vector<RTLIL::SigSpec> port_taints[NUM_PORTS];
 
-    if (ports[A].size() != ports[B].size())
-        log_cmd_error("In $logic_or, all data ports must have the same size.\n");
     for (unsigned int i = 0; i < NUM_PORTS; ++i)
         port_taints[i] = get_corresponding_taint_signals(module, excluded_signals, ports[i], num_taints);
 
-    int data_size = ports[A].size();
-
-    log("Data size: %d\n", data_size);
-
-    if (data_size == 1) // Equivalent to traditional or operator.
+    if (ports[A].size() == 1 && ports[B].size() == 1) // Equivalent to traditional or operator.
         for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
             RTLIL::SigSpec not_a = module->Not(NEW_ID, ports[A]);
             RTLIL::SigSpec not_b = module->Not(NEW_ID, ports[B]);
