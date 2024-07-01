@@ -2,6 +2,7 @@
 OBJS += passes/cellift/cellift.o
 OBJS += passes/cellift/cellift_util.o
 OBJS += passes/cellift/cells/stateful/adff.o
+OBJS += passes/cellift/cells/stateful/aldff.o
 OBJS += passes/cellift/cells/stateful/adffe.o
 OBJS += passes/cellift/cells/stateful/dff.o
 OBJS += passes/cellift/cells/stateful/dffe.o
