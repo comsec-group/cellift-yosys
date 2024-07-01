@@ -37,6 +37,7 @@ extern bool cellift_dlatch_en(RTLIL::Module *module, RTLIL::Cell *cell, unsigned
 extern bool cellift_dff(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_dff_techmap(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_adff(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
+extern bool cellift_aldff(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_sdff(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_sdff_techmap(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_adffe(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
@@ -55,6 +56,7 @@ extern bool cellift_not(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int n
 extern bool cellift_neg(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_and(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_or(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
+extern bool cellift_mod(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_mul(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_pmux_large_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_pmux_small_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
@@ -104,6 +106,7 @@ struct CellIFTWorker {
 
 	RTLIL::Module *module = nullptr;
 	const RTLIL::IdString cellift_attribute_name = ID(cellift);
+	const RTLIL::IdString cellift_noinstrument_attribute_name = ID(cellift_noinstrument);
 
 	void create_cellift_logic()
 	{
@@ -115,23 +118,37 @@ struct CellIFTWorker {
 		if (opt_verbose)
 			log("CellIFTing module %s.\n", module->name.c_str());
 
+		if (module->has_attribute(cellift_noinstrument_attribute_name)) {
+			log("Module %s has the attribute '%s'. Skipping CellIFT instrumentation.\n", module->name.c_str(),
+			    cellift_noinstrument_attribute_name.c_str());
+			return;
+		}
+
 		std::vector<RTLIL::SigSig> connections(module->connections());
 
 		// Add the new taint I/O connections.
+		pool<std::pair<RTLIL::IdString, int>> in_out_wires_to_add;
 		pool<std::pair<RTLIL::IdString, int>> input_wires_to_add;
 		pool<std::pair<RTLIL::IdString, int>> output_wires_to_add;
 
 		// First, create the input and output wires for the taints if they are not excluded.
 		for (auto &wire_it : module->wires_) {
+			// in/out ports
+			if (wire_it.second->port_input && wire_it.second->port_output && !is_signal_excluded(excluded_signals, wire_it.first.str())) {
+				for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
+					in_out_wires_to_add.insert(
+					  std::pair<RTLIL::IdString, int>(get_wire_taint_idstring(wire_it.first, taint_id), wire_it.second->width));
+				}
+			}
 			// If this is a module port corresponding to a non-excluded taint signal, then add the corresponding taint signal ports.
-			if (wire_it.second->port_input && !is_signal_excluded(excluded_signals, wire_it.first.str())) {
+			else if (wire_it.second->port_input && !is_signal_excluded(excluded_signals, wire_it.first.str())) {
 				for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
 					input_wires_to_add.insert(
 					  std::pair<RTLIL::IdString, int>(get_wire_taint_idstring(wire_it.first, taint_id), wire_it.second->width));
 				}
 			}
 			// All output ports must be augmented (excluded or not).
-			if (wire_it.second->port_output && !is_signal_excluded(excluded_signals, wire_it.first.str())) {
+			else if (wire_it.second->port_output && !is_signal_excluded(excluded_signals, wire_it.first.str())) {
 				for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
 					output_wires_to_add.insert(
 					  std::pair<RTLIL::IdString, int>(get_wire_taint_idstring(wire_it.first, taint_id), wire_it.second->width));
@@ -139,18 +156,28 @@ struct CellIFTWorker {
 			}
 		}
 		// No need to check for taint signal exclusion here, the filtering has already been made when adding the signals to the
-		// *put_wires_to_add pools.
+		// *ut_wires_to_add pools.
+		for (auto &wire_info_it : in_out_wires_to_add) {
+			if (opt_verbose)
+				log("New in/out wire: %s.\n", wire_info_it.first.c_str());
+			RTLIL::Wire *w = module->addWire(wire_info_it.first, wire_info_it.second);
+			w->port_input = true;
+			w->port_output = true;
+			w->set_bool_attribute(cellift_attribute_name);
+		}
 		for (auto &wire_info_it : input_wires_to_add) {
 			if (opt_verbose)
 				log("New input wire: %s.\n", wire_info_it.first.c_str());
 			RTLIL::Wire *w = module->addWire(wire_info_it.first, wire_info_it.second);
 			w->port_input = true;
+			w->set_bool_attribute(cellift_attribute_name);
 		}
 		for (auto &wire_info_it : output_wires_to_add) {
 			if (opt_verbose)
 				log("New output wire: %s.\n", wire_info_it.first.c_str());
 			RTLIL::Wire *w = module->addWire(wire_info_it.first, wire_info_it.second);
-			w->port_output = true;
+			w->port_output = true; 
+			w->set_bool_attribute(cellift_attribute_name);
 		}
 
 		// True: the cell will be SUPPLEMENTED by the taint tracking logic.
@@ -181,6 +208,13 @@ struct CellIFTWorker {
 				keep_current_cell = cellift_dlatch_en(module, cell, num_taints, excluded_signals);
 
 			////
+			// Ignored
+			////
+
+			else if (cell->type.in(ID($print)))
+				keep_current_cell = 0;
+
+			////
 			// Flip-flops
 			////
 
@@ -193,6 +227,9 @@ struct CellIFTWorker {
 
 			else if (cell->type.in(ID($adff)))
 				keep_current_cell = cellift_adff(module, cell, num_taints, excluded_signals);
+
+      else if (cell->type.in(ID($aldff)))
+				keep_current_cell = cellift_aldff(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($sdff)))
 				keep_current_cell = cellift_sdff(module, cell, num_taints, excluded_signals);
@@ -291,10 +328,10 @@ struct CellIFTWorker {
 				else
 					keep_current_cell = cellift_mux(module, cell, num_taints, excluded_signals);
 
-			else if (cell->type.in(ID($xor), ID($_XOR_), ID($_XNOR_)))
+			else if (cell->type.in(ID($xor), ID($xnor), ID($_XOR_), ID($_XNOR_)))
 				keep_current_cell = cellift_xor(module, cell, num_taints, excluded_signals);
 
-			else if (cell->type.in(ID($eq), ID($eqx), ID($ne)))
+			else if (cell->type.in(ID($eq), ID($eqx), ID($ne), ID($nex)))
 				if (opt_conjunctive_cells_pool.find("eq-ne") != opt_conjunctive_cells_pool.end())
 					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
 				else
@@ -392,6 +429,12 @@ struct CellIFTWorker {
 					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
 				else
 					keep_current_cell = cellift_shift_imprecise(module, cell, num_taints, excluded_signals);
+
+			else if (cell->type.in(ID($mod)))
+				if (opt_conjunctive_cells_pool.find("mod") != opt_conjunctive_cells_pool.end())
+					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
+				else
+					keep_current_cell = cellift_mod(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($mul)))
 				if (opt_conjunctive_cells_pool.find("mul") != opt_conjunctive_cells_pool.end())
@@ -523,6 +566,7 @@ struct CelliftPass : public Pass {
 		log("  -conjunctive-or\n");
 		log("  -conjunctive-mul\n");
 		log("  -conjunctive-pmux\n");
+		log("  -conjunctive-mod\n");
 		log("  -conjunctive-mux\n");
 		log("  -conjunctive-eq-ne\n");
 		log("  -conjunctive-ge\n");
@@ -712,7 +756,7 @@ struct CelliftPass : public Pass {
 			for (auto cell : module->selected_cells()) {
 				RTLIL::Module *tpl = design->module(cell->type);
 				if (tpl != nullptr) {
-					if (topo_modules.database.count(tpl) == 0)
+					if (topo_modules.get_database().count(tpl) == 0)
 						worklist.push_back(tpl);
 					topo_modules.edge(tpl, module);
 					non_top_modules.insert(cell->type);
