@@ -40,14 +40,29 @@ private:
 	string opt_separator;
 	bool opt_exclude_latches;
 	bool opt_no_display_widths;
+	bool opt_display_celltypes;
 
     // pairs of (path from top, number of bits)
 	vector<pair<string, int>> state_holding_elems;
+	vector<string> state_holding_elem_types;
 
 	const std::string list_state_elements_attr_name = ID(list_state_elements).str();
 
-	#define NUM_FF_CELL_TYPES 105
-	const std::string ff_cell_types[NUM_FF_CELL_TYPES] = { "$_DFFE_NN0N_",
+	#define NUM_FF_CELL_TYPES 120
+	const std::string ff_cell_types[NUM_FF_CELL_TYPES] = {
+		"$_ALDFFE_NNN_",
+		"$_ALDFFE_NNP_",
+		"$_ALDFFE_NPN_",
+		"$_ALDFFE_NPP_",
+		"$_ALDFFE_PNN_",
+		"$_ALDFFE_PNP_",
+		"$_ALDFFE_PPN_",
+		"$_ALDFFE_PPP_",
+		"$_ALDFF_NN_",
+		"$_ALDFF_NP_",
+		"$_ALDFF_PN_",
+		"$_ALDFF_PP_",
+    		"$_DFFE_NN0N_",
 		"$_DFFE_NN0P_",
 		"$_DFFE_NN1N_",
 		"$_DFFE_NN1P_",
@@ -144,6 +159,8 @@ private:
 		"$_SDFF_PP1_",
 		"$adff",
 		"$adffe",
+		"$aldff",
+		"$aldffe",
 		"$dff",
 		"$dffe",
 		"$dffsr",
@@ -151,11 +168,13 @@ private:
 		"$ff",
 		"$sdff",
 		"$sdffce",
-		"$sdffe"
+		"$sdffe",
+		"$sr"
 	};
 
 	#define NUM_LATCH_CELL_TYPES 25
-	const std::string latch_cell_types[NUM_LATCH_CELL_TYPES] = { "$_DLATCHSR_NNN_",
+	const std::string latch_cell_types[NUM_LATCH_CELL_TYPES] = {
+		"$_DLATCHSR_NNN_",
 		"$_DLATCHSR_NNP_",
 		"$_DLATCHSR_NPN_",
 		"$_DLATCHSR_NPP_",
@@ -219,6 +238,8 @@ private:
 				if (!is_state_holding_element)
 					continue;
 
+
+
 				// State output may have different names (usually Q).
 				RTLIL::IdString out_port_name;
 				if (cell->hasPort(ID(Y)))
@@ -240,6 +261,9 @@ private:
 						wire_name = chunk_it.wire->name.str()+" (bits "+std::to_string(chunk_it.offset+chunk_it.width-1)+" downto "+std::to_string(chunk_it.offset)+")";
 
 					state_holding_elems.push_back(pair<string, int>(path_so_far+opt_separator+wire_name.substr(1), chunk_it.width));
+
+					if (opt_display_celltypes)
+						state_holding_elem_types.push_back(cell->type.str());
 				}
 
 			} else {
@@ -254,15 +278,19 @@ private:
 	//////////////////////////
 
 	void display_elements () {
-		for (auto elem: state_holding_elems)
-			log("@LIST_STATE_ELEMENT %s\n", elem.first.c_str());
+		for (size_t elem_id = 0; elem_id < state_holding_elems.size(); elem_id++) {
+			log("@LIST_STATE_ELEMENT %s\n", state_holding_elems[elem_id].first.c_str());
+			if (opt_display_celltypes)
+				log("^ Cell type: %s\n", state_holding_elem_types[elem_id].c_str());
+		}
 	}
 
 public:
-	ListStateElementsWorker(RTLIL::Module *top_module, string _opt_separator, bool _opt_exclude_latches, bool _opt_no_display_widths) {
+	ListStateElementsWorker(RTLIL::Module *top_module, string _opt_separator, bool _opt_exclude_latches, bool _opt_no_display_widths, bool _opt_display_celltypes) {
 		opt_separator = _opt_separator;
 		opt_exclude_latches = _opt_exclude_latches;
 		opt_no_display_widths = _opt_no_display_widths;
+		opt_display_celltypes = _opt_display_celltypes;
 
 		list_state_elements(top_module, "TOP");
 
@@ -287,6 +315,8 @@ struct ListStateElementsPass : public Pass {
 		log("        Exclude latches from enumeration.\n");
 		log("    -no-display-widths\n");
 		log("        Do not display the exact bit range for each signal.\n");
+		log("    -display-celltypes\n");
+		log("        Display cell types under stateful signal names.\n");
 		log("\n");
 	}
 
@@ -295,6 +325,7 @@ struct ListStateElementsPass : public Pass {
 		string opt_separator = ".";
 		bool opt_exclude_latches = false;
 		bool opt_no_display_widths = false;
+		bool opt_display_celltypes = false;
 
 		std::vector<std::string>::size_type argidx;
 		for (argidx = 1; argidx < args.size(); argidx++) {
@@ -310,6 +341,10 @@ struct ListStateElementsPass : public Pass {
 				opt_no_display_widths = true;
 				continue;
 			}
+			if (args[argidx] == "-display-celltypes") {
+				opt_display_celltypes = true;
+				continue;
+			}
 		}
 
 		log_header(design, "Executing list_state_elements pass.\n");
@@ -317,7 +352,7 @@ struct ListStateElementsPass : public Pass {
 		if (GetSize(design->selected_modules()) == 0)
 			log_cmd_error("Can't operate on an empty selection!\n");
 
-		ListStateElementsWorker worker(design->top_module(), opt_separator, opt_exclude_latches, opt_no_display_widths);
+		ListStateElementsWorker worker(design->top_module(), opt_separator, opt_exclude_latches, opt_no_display_widths, opt_display_celltypes);
 	}
 } ListStateElementsPass;
 
