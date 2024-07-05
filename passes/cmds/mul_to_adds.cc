@@ -140,7 +140,7 @@ struct MulToAddsPass : public Pass {
 			for (auto cell : module->selected_cells()) {
 				RTLIL::Module *tpl = design->module(cell->type);
 				if (tpl != nullptr) {
-					if (topo_modules.database.count(tpl) == 0)
+					if (topo_modules.get_database().count(tpl) == 0)
 						worklist.push_back(tpl);
 					topo_modules.edge(tpl, module);
 					non_top_modules.insert(cell->type);
