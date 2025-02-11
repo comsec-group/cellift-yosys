@@ -51,7 +51,7 @@ bool cellift_eq_ne(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_ta
 
         RTLIL::SigSpec or_reduce_taint_output = module->ReduceOr(NEW_ID, bits_to_reduce);
 
-        // Second, check whether the non-tainted bits match: maskdout the tainted values and compare.
+        // Second, check whether the non-tainted bits match: mask out the tainted values and compare.
         RTLIL::SigSpec disjunct_taint_ids = module->Or(NEW_ID, extended_a_taint, extended_b_taint);
         RTLIL::SigSpec not_disjunct_taint_ids = module->Not(NEW_ID, disjunct_taint_ids);
         RTLIL::SigSpec a_non_tainted_input_vals = module->And(NEW_ID, extended_a, not_disjunct_taint_ids);
