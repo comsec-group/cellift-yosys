@@ -32,6 +32,7 @@ OBJS += passes/cellift/cells/mul.o
 OBJS += passes/cellift/cells/pmux.o
 OBJS += passes/cellift/cells/mod.o
 OBJS += passes/cellift/cells/mux.o
+OBJS += passes/cellift/cells/bwmux.o
 OBJS += passes/cellift/cells/neg.o
 OBJS += passes/cellift/cells/not.o
 OBJS += passes/cellift/cells/or.o
