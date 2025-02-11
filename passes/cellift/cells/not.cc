@@ -22,8 +22,46 @@ bool cellift_not(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tain
     for (unsigned int i = 0; i < NUM_PORTS; ++i)
         port_taints[i] = get_corresponding_taint_signals(module, excluded_signals, ports[i], num_taints);
 
-    for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++)
-        module->connect(port_taints[Y][taint_id], port_taints[A][taint_id]);
+    int a_size = ports[A].size();
+    int y_size = ports[Y].size();
+
+    RTLIL::SigSpec extended_a(ports[A]);
+
+    if (a_size == y_size) {
+        extended_a = ports[A];
+    }
+    else if (a_size < y_size) {
+        bool is_a_signed = cell->getParam(ID::A_SIGNED).as_bool();
+        if (!is_a_signed) {
+            extended_a.append(RTLIL::SigSpec(RTLIL::State::S0, y_size-a_size));
+        } else {
+            RTLIL::SigBit curr_msb = ports[A][a_size-1];
+            extended_a.append(RTLIL::SigSpec(curr_msb, y_size-a_size));
+        }
+    } else {
+        extended_a = ports[A].extract(0, y_size-1);
+    }
+
+    for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
+        RTLIL::SigSpec extended_a_taint(port_taints[A][taint_id]);
+
+        if (a_size == y_size) {
+            extended_a_taint = port_taints[A][taint_id];
+        }
+        else if (a_size < y_size) {
+            bool is_a_signed = cell->getParam(ID::A_SIGNED).as_bool();
+            if (!is_a_signed) {
+                extended_a_taint.append(RTLIL::SigSpec(RTLIL::State::S0, y_size-a_size));
+            } else {
+                RTLIL::SigBit curr_msb_taint = port_taints[A][taint_id][a_size-1];
+                extended_a_taint.append(RTLIL::SigSpec(curr_msb_taint, y_size-a_size));
+            }
+        } else {
+            extended_a_taint = port_taints[A][taint_id].extract(0, y_size-1);
+        }
+
+        module->connect(port_taints[Y][taint_id], extended_a_taint);
+    }
 
     return true;
 }
