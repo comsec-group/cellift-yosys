@@ -29,6 +29,7 @@ OBJS += passes/cellift/cells/logic_not.o
 OBJS += passes/cellift/cells/logic_or.o
 OBJS += passes/cellift/cells/lt.o
 OBJS += passes/cellift/cells/mul.o
+OBJS += passes/cellift/cells/pow.o
 OBJS += passes/cellift/cells/pmux.o
 OBJS += passes/cellift/cells/mod.o
 OBJS += passes/cellift/cells/mux.o

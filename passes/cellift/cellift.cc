@@ -58,6 +58,7 @@ extern bool cellift_and(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int n
 extern bool cellift_or(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_mod(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_mul(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
+extern bool cellift_pow(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_pmux_large_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_pmux_small_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_mux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
@@ -177,7 +178,7 @@ struct CellIFTWorker {
 			if (opt_verbose)
 				log("New output wire: %s.\n", wire_info_it.first.c_str());
 			RTLIL::Wire *w = module->addWire(wire_info_it.first, wire_info_it.second);
-			w->port_output = true; 
+			w->port_output = true;
 			w->set_bool_attribute(cellift_attribute_name);
 		}
 
@@ -448,6 +449,9 @@ struct CellIFTWorker {
 					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
 				else
 					keep_current_cell = cellift_mul(module, cell, num_taints, excluded_signals);
+
+			else if (cell->type.in(ID($pow)))
+				keep_current_cell = cellift_pow(module, cell, num_taints, excluded_signals);
 
 			else if (module->design->module(cell->type) != nullptr) {
 				// User cell type
