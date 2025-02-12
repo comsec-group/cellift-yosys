@@ -62,6 +62,7 @@ extern bool cellift_pow(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int n
 extern bool cellift_pmux_large_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_pmux_small_cells(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_mux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
+extern bool cellift_demux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_bmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_bwmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_xor(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
@@ -330,6 +331,12 @@ struct CellIFTWorker {
 					keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
 				else
 					keep_current_cell = cellift_mux(module, cell, num_taints, excluded_signals);
+
+			else if (cell->type.in(ID($demux)))
+				if (opt_conjunctive_cells_pool.find("demux") != opt_conjunctive_cells_pool.end())
+					keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
+				else
+					keep_current_cell = cellift_demux(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($bmux)))
 				if (opt_conjunctive_cells_pool.find("bmux") != opt_conjunctive_cells_pool.end())
