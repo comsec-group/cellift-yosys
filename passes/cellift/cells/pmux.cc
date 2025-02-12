@@ -24,7 +24,7 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
     unsigned int a_size = ports[A].size();
     unsigned int b_size = ports[B].size();
     unsigned int s_size = ports[S].size();
-    unsigned int y_size = ports[Y].size();
+    // unsigned int y_size = ports[Y].size();
 
     unsigned int data_width = cell->getParam(ID::WIDTH).as_int(false);
     unsigned int expected_a_size = data_width;
@@ -118,7 +118,12 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         std::vector<RTLIL::SigBit> implicit_rotated_reduced;
         for (unsigned int i = 0; i < data_width; i++) {
             RTLIL::SigSpec curr_implicit_rotated;
-            for (unsigned int j = 0; j < s_size; j++) {
+            // implicit_rotated_reduced.size() here is s_size+1
+            if (implicit_prerotate.size() != s_size+1) {
+                log("implicit_prerotate.size() = %ld, s_size+1 = %d\n", implicit_prerotate.size(), s_size+1);
+                log_cmd_error("implicit_prerotate.size() != s_size+1\n");
+            }
+            for (unsigned int j = 0; j < implicit_prerotate.size(); j++) {
                 curr_implicit_rotated.append(implicit_prerotate[j][i]);
             }
             implicit_rotated_reduced.push_back(module->Ne(NEW_ID, curr_implicit_rotated, RTLIL::SigSpec(curr_implicit_rotated.extract(0, 1), curr_implicit_rotated.size())));
@@ -129,7 +134,11 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         std::vector<RTLIL::SigSpec> explicit_rotated_reduction_sigs;
         explicit_rotated_reduction_sigs.push_back(explicit_prereduce[0]);
         // explicit_rotated_reduction_sigs.size() here is s_size+1
-        for (unsigned int i = 1; i < explicit_rotated_reduction_sigs.size(); i++) {
+        if (explicit_prereduce.size() != s_size+1) {
+            log("explicit_prereduce.size() = %ld, s_size+1 = %d\n", explicit_prereduce.size(), s_size+1);
+            log_cmd_error("explicit_prereduce.size() != s_size+1\n");
+        }
+        for (unsigned int i = 1; i < explicit_prereduce.size(); i++) {
             explicit_rotated_reduction_sigs.push_back(module->Or(NEW_ID, explicit_prereduce[i], explicit_rotated_reduction_sigs[i-1]));
         }
         RTLIL::SigSpec explicit_rotated_reduced_sig = explicit_rotated_reduction_sigs.back();
