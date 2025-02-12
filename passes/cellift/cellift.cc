@@ -65,6 +65,7 @@ extern bool cellift_mux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int n
 extern bool cellift_demux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_bmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_bwmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
+extern bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_xor(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_eq_ne(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
 extern bool cellift_ge(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals);
@@ -318,13 +319,13 @@ struct CellIFTWorker {
 				else
 					keep_current_cell = cellift_or(module, cell, num_taints, excluded_signals);
 
-			else if (cell->type.in(ID($pmux)))
-				if (opt_conjunctive_cells_pool.find("pmux") != opt_conjunctive_cells_pool.end())
-					keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
-				else if (opt_pmux_use_large_cells)
-					keep_current_cell = cellift_pmux_large_cells(module, cell, num_taints, excluded_signals);
-				else
-					keep_current_cell = cellift_pmux_small_cells(module, cell, num_taints, excluded_signals);
+			// else if (cell->type.in(ID($pmux)))
+			// 	if (opt_conjunctive_cells_pool.find("pmux") != opt_conjunctive_cells_pool.end())
+			// 		keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
+			// 	else if (opt_pmux_use_large_cells)
+			// 		keep_current_cell = cellift_pmux_large_cells(module, cell, num_taints, excluded_signals);
+			// 	else
+			// 		keep_current_cell = cellift_pmux_small_cells(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($mux), ID($_MUX_), ID($_NMUX_)))
 				if (opt_conjunctive_cells_pool.find("mux") != opt_conjunctive_cells_pool.end())
@@ -349,6 +350,12 @@ struct CellIFTWorker {
 					keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
 				else
 					keep_current_cell = cellift_bwmux(module, cell, num_taints, excluded_signals);
+
+			else if (cell->type.in(ID($pmux)))
+				if (opt_conjunctive_cells_pool.find("pmux") != opt_conjunctive_cells_pool.end())
+					keep_current_cell = cellift_conjunctive_three_inputs(module, cell, num_taints, excluded_signals);
+				else
+					keep_current_cell = cellift_pmux(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($xor), ID($xnor), ID($_XOR_), ID($_XNOR_)))
 				keep_current_cell = cellift_xor(module, cell, num_taints, excluded_signals);

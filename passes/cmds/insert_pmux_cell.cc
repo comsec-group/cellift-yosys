@@ -44,10 +44,10 @@ private:
 		module->remove(cells[0]);
 		log("Removed original cell.\n");
 
-		RTLIL::Wire* wire_a_i;
-		RTLIL::Wire* wire_b_i;
-		RTLIL::Wire* wire_s_i;
-		RTLIL::Wire* wire_y_o;
+		RTLIL::Wire* wire_a_i = NULL;
+		RTLIL::Wire* wire_b_i = NULL;
+		RTLIL::Wire* wire_s_i = NULL;
+		RTLIL::Wire* wire_y_o = NULL;
 
 		for(unsigned int i = 0; i < wires.size(); i++) {
 			if (wires[i]->name == ID(a_i))
@@ -59,6 +59,23 @@ private:
 			else if (wires[i]->name == ID(y_o))
 				wire_y_o = wires[i];
 		}
+
+		if (wire_a_i == NULL || wire_b_i == NULL || wire_s_i == NULL || wire_y_o == NULL) {
+			if (wire_a_i == NULL) {
+				log("Missing wire a_i.\n");
+			}
+			if (wire_b_i == NULL) {
+				log("Missing wire b_i.\n");
+			}
+			if (wire_s_i == NULL) {
+				log("Missing wire s_i.\n");
+			}
+			if (wire_y_o == NULL) {
+				log("Missing wire y_o.\n");
+			}
+			log_cmd_error("Missing wires in the module.\n");
+		}
+
 
 		RTLIL::Cell* new_cell;
 		RTLIL::Const rst_val_sigspec;
