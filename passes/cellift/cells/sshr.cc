@@ -27,13 +27,12 @@ bool cellift_sshr(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
     int b_size = ports[B].size();
     int output_width = ports[Y].size();
     int clog2_y = ceil(log2(output_width));
+    int interm_a_wire_width = 0;
 
-    // Extend/shrink the input A port to the output widths.
+    // Extend the input A port to the output widths.
     RTLIL::SigSpec extended_a(ports[A]);
     if (output_width > ports[A].size())
         extended_a.append(RTLIL::SigSpec(RTLIL::State::S0, output_width-ports[A].size()));
-    else if (ports[A].size() > output_width)
-        extended_a = ports[A].extract(0, output_width);
 
     RTLIL::SigSpec extended_b = ports[B];
     if (clog2_y > ports[B].size())
@@ -54,8 +53,13 @@ bool cellift_sshr(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         RTLIL::SigSpec extended_a_taint(port_taints[A][taint_id]);
         if (output_width > ports[A].size())
             extended_a_taint.append(RTLIL::SigSpec(RTLIL::State::S0, output_width-port_taints[A][taint_id].size()));
-        else if (ports[A].size() > output_width)
-            extended_a_taint = port_taints[A][taint_id].extract(0, output_width);
+
+        // If A is wider than the output, make the intermediate cell output as wide as the original A input, instead of the original Y width,
+        // to not loose sign information through truncation.
+        if (ports[A].size() > output_width)
+            interm_a_wire_width = ports[A].size();
+        else
+            interm_a_wire_width = output_width;
 
         RTLIL::SigSpec extended_b_taint = port_taints[B][taint_id];
         if (clog2_y > ports[B].size())
@@ -65,8 +69,8 @@ bool cellift_sshr(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         RTLIL::SigSpec not_b_taint = module->Not(NEW_ID, extended_b_taint);
         RTLIL::SigSpec untainted_b = module->And(NEW_ID, extended_b, not_b_taint);
 
-        RTLIL::Wire* interm_a_wire = module->addWire(NEW_ID, output_width);
-        RTLIL::Wire* interm_a_taint_wire = module->addWire(NEW_ID, output_width);
+        RTLIL::Wire* interm_a_wire = module->addWire(NEW_ID, interm_a_wire_width);
+        RTLIL::Wire* interm_a_taint_wire = module->addWire(NEW_ID, interm_a_wire_width);
 
         RTLIL::Cell* interm_a_cell = module->addSshr(NEW_ID, extended_a, untainted_b, interm_a_wire);
         RTLIL::Cell* interm_a_taint_cell = module->addSshr(NEW_ID, extended_a_taint, untainted_b, interm_a_taint_wire);
