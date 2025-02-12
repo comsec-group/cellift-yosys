@@ -28,11 +28,14 @@ bool cellift_sshr(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
     int output_width = ports[Y].size();
     int clog2_y = ceil(log2(output_width));
 
-    // Extend the input A port to the output widths.
-    RTLIL::SigSpec extended_a = ports[A];
-    RTLIL::SigSpec extended_b = ports[B];
+    // Extend/shrink the input A port to the output widths.
+    RTLIL::SigSpec extended_a(ports[A]);
     if (output_width > ports[A].size())
         extended_a.append(RTLIL::SigSpec(RTLIL::State::S0, output_width-ports[A].size()));
+    else if (ports[A].size() > output_width)
+        extended_a = ports[A].extract(0, output_width);
+
+    RTLIL::SigSpec extended_b = ports[B];
     if (clog2_y > ports[B].size())
         extended_b.append(RTLIL::SigSpec(RTLIL::State::S0, clog2_y-ports[B].size()));
 
@@ -48,10 +51,13 @@ bool cellift_sshr(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
     log("  Extended B size: %d\n", extended_b.size());
 
     for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
-        RTLIL::SigSpec extended_a_taint = port_taints[A][taint_id];
-        RTLIL::SigSpec extended_b_taint = port_taints[B][taint_id];
+        RTLIL::SigSpec extended_a_taint(port_taints[A][taint_id]);
         if (output_width > ports[A].size())
             extended_a_taint.append(RTLIL::SigSpec(RTLIL::State::S0, output_width-port_taints[A][taint_id].size()));
+        else if (ports[A].size() > output_width)
+            extended_a_taint = port_taints[A][taint_id].extract(0, output_width);
+
+        RTLIL::SigSpec extended_b_taint = port_taints[B][taint_id];
         if (clog2_y > ports[B].size())
             extended_b_taint.append(RTLIL::SigSpec(RTLIL::State::S0, clog2_y-port_taints[B][taint_id].size()));
 

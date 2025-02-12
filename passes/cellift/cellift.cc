@@ -472,7 +472,10 @@ struct CellIFTWorker {
 					keep_current_cell = cellift_mul(module, cell, num_taints, excluded_signals);
 
 			else if (cell->type.in(ID($pow)))
-				keep_current_cell = cellift_pow(module, cell, num_taints, excluded_signals);
+				if (opt_conjunctive_cells_pool.find("pow") != opt_conjunctive_cells_pool.end())
+					keep_current_cell = cellift_conjunctive_two_inputs(module, cell, num_taints, excluded_signals);
+				else
+					keep_current_cell = cellift_pow(module, cell, num_taints, excluded_signals);
 
 			else if (module->design->module(cell->type) != nullptr) {
 				// User cell type
