@@ -14,14 +14,6 @@ extern std::vector<RTLIL::SigSpec> get_corresponding_taint_signals(RTLIL::Module
  */
 bool cellift_bmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_taints, std::vector<string> *excluded_signals) {
 
-    // NOTIMPLEMENTED: SOME ERROR WITH EXTRACT
-    // cell $demux $auto$builder.cc:38:Demux$98202
-    // parameter \S_WIDTH 2
-    // parameter \WIDTH 12
-    // connect \A { 1'0 $auto$rtlil.cc:2874:Mux$98199 }
-    // connect \S \gen_cache_wt.i_cache_subsystem.i_wt_dcache.i_wt_dcache_wbuffer.i_tx_id_rr.idx_o
-    // connect \Y $auto$rtlil.cc:2896:Demux$98203
-
     const unsigned int A = 0, S = 1, Y = 2;
     const unsigned int NUM_PORTS = 3;
     RTLIL::SigSpec ports[NUM_PORTS] = {cell->getPort(ID::A), cell->getPort(ID::S), cell->getPort(ID::Y)};
