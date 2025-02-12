@@ -30,6 +30,7 @@ OBJS += passes/cmds/mul_to_adds.o
 OBJS += passes/cmds/timestamp.o
 OBJS += passes/cmds/add_attrs_to_state_elems.o
 OBJS += passes/cmds/clear_all_attrs.o
+OBJS += passes/cmds/insert_bmux_cell.o
 OBJS += passes/cmds/insert_pmux_cell.o
 OBJS += passes/cmds/insert_shift_cell.o
 OBJS += passes/cmds/insert_shiftx_cell.o
