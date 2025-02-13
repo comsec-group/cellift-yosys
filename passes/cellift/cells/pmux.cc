@@ -105,7 +105,8 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
             // Implicit flows: Taints coming from the data input port.
             implicit_prerotate.push_back(module->Mux(NEW_ID, ports[Y], b_slices[id_in_s], is_s_minimality_tainted[id_in_s]));
             // Explicit flows: Taints coming from the selectable entries.
-            explicit_prereduce.push_back(module->Mux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S0, data_width), b_taint_slices[id_in_s], is_s_minimality_true_or_tainted[id_in_s]));
+            // explicit_prereduce.push_back(module->Mux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S0, data_width), b_taint_slices[id_in_s], is_s_minimality_true_or_tainted[id_in_s]));
+            explicit_prereduce.push_back(module->And(NEW_ID, b_taint_slices[id_in_s], RTLIL::SigSpec(is_s_minimality_true_or_tainted[id_in_s], data_width)));
         }
         RTLIL::SigBit can_s_be_zero = module->ReduceOr(NEW_ID, are_s_bits_zero_or_tainted);
 
@@ -115,29 +116,44 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         explicit_prereduce.push_back(module->Mux(NEW_ID, ports[Y], extended_a_taint, can_s_be_zero));
 
         // Reduce the implicits
-        std::vector<RTLIL::SigBit> implicit_rotated_reduced;
-        for (unsigned int i = 0; i < data_width; i++) {
-            RTLIL::SigSpec curr_implicit_rotated;
-            // implicit_rotated_reduced.size() here is s_size+1
-            if (implicit_prerotate.size() != s_size+1) {
-                log("implicit_prerotate.size() = %ld, s_size+1 = %d\n", implicit_prerotate.size(), s_size+1);
-                log_cmd_error("implicit_prerotate.size() != s_size+1\n");
-            }
-            for (unsigned int j = 0; j < implicit_prerotate.size(); j++) {
-                curr_implicit_rotated.append(implicit_prerotate[j][i]);
-            }
-            implicit_rotated_reduced.push_back(module->Ne(NEW_ID, curr_implicit_rotated, RTLIL::SigSpec(curr_implicit_rotated.extract(0, 1), curr_implicit_rotated.size())));
+        if (implicit_prerotate.size() != s_size+1) {
+            log("implicit_prerotate.size() = %ld, s_size+1 = %d\n", implicit_prerotate.size(), s_size+1);
+            log_cmd_error("implicit_prerotate.size() != s_size+1\n");
         }
-        RTLIL::SigSpec implicit_rotated_reduced_sig(implicit_rotated_reduced); 
 
-        // Reduce the explicits
-        std::vector<RTLIL::SigSpec> explicit_rotated_reduction_sigs;
-        explicit_rotated_reduction_sigs.push_back(explicit_prereduce[0]);
-        // explicit_rotated_reduction_sigs.size() here is s_size+1
+        // Option 1: No rotation: AND all the implicit prereduce signals, OR them and see if it is the same
+        // The AND minimizes over the implicit prereduce signals, the OR maximizes.
+        std::vector<RTLIL::SigSpec> implicit_cumulative_and;
+        std::vector<RTLIL::SigSpec> implicit_cumulative_or;
+        implicit_cumulative_and.push_back(implicit_prerotate[0]);
+        implicit_cumulative_or.push_back (implicit_prerotate[0]);
+        for (unsigned int i = 1; i < implicit_prerotate.size(); i++) {
+            implicit_cumulative_and.push_back(module->And(NEW_ID, implicit_prerotate[i], implicit_cumulative_and[i-1]));
+            implicit_cumulative_or.push_back (module->Or(NEW_ID,  implicit_prerotate[i], implicit_cumulative_or[i-1]));
+        }
+        RTLIL::SigSpec implicit_rotated_reduced_sig = module->Xor(NEW_ID, implicit_cumulative_and.back(), implicit_cumulative_or.back());
+
+        // // Option 2: rotation
+        // std::vector<RTLIL::SigBit> implicit_rotated_reduced;
+        // for (unsigned int i = 0; i < data_width; i++) {
+        //     RTLIL::SigSpec curr_implicit_rotated;
+        //     // implicit_rotated_reduced.size() here is s_size+1
+        //     for (unsigned int j = 0; j < implicit_prerotate.size(); j++) {
+        //         curr_implicit_rotated.append(implicit_prerotate[j][i]);
+        //     }
+        //     implicit_rotated_reduced.push_back(module->Ne(NEW_ID, curr_implicit_rotated, RTLIL::SigSpec(curr_implicit_rotated.extract(0, 1), curr_implicit_rotated.size())));
+        // }
+        // RTLIL::SigSpec implicit_rotated_reduced_sig(implicit_rotated_reduced); 
+
+
+        // explicit_prereduce.size() here is s_size+1
         if (explicit_prereduce.size() != s_size+1) {
             log("explicit_prereduce.size() = %ld, s_size+1 = %d\n", explicit_prereduce.size(), s_size+1);
             log_cmd_error("explicit_prereduce.size() != s_size+1\n");
         }
+        // Reduce the explicits
+        std::vector<RTLIL::SigSpec> explicit_rotated_reduction_sigs;
+        explicit_rotated_reduction_sigs.push_back(explicit_prereduce[0]);
         for (unsigned int i = 1; i < explicit_prereduce.size(); i++) {
             explicit_rotated_reduction_sigs.push_back(module->Or(NEW_ID, explicit_prereduce[i], explicit_rotated_reduction_sigs[i-1]));
         }
