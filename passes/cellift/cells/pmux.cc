@@ -62,15 +62,25 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
     }
 
     for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
-        RTLIL::SigSpec are_s_bits_zero_or_tainted = module->Or(NEW_ID, module->Not(NEW_ID, ports[S]), port_taints[S][taint_id]);
+        RTLIL::SigSpec not_s = module->Not(NEW_ID, ports[S]);
+        RTLIL::SigSpec are_s_bits_zero_or_tainted = module->Or(NEW_ID, not_s, port_taints[S][taint_id]);
         RTLIL::SigSpec cumul_are_lower_bits_zero_or_tainted;
+        RTLIL::SigSpec cumul_are_lower_bits_zero;
+        RTLIL::SigSpec cumul_is_some_lower_bit_tainted;
         cumul_are_lower_bits_zero_or_tainted.append(RTLIL::State::S1);
+        cumul_are_lower_bits_zero.append(RTLIL::State::S1);
+        cumul_is_some_lower_bit_tainted.append(RTLIL::State::S0);
         for (unsigned int i = 1; i < s_size; i++) {
-            cumul_are_lower_bits_zero_or_tainted.append(module->And(NEW_ID, cumul_are_lower_bits_zero_or_tainted[i-1], are_s_bits_zero_or_tainted.extract(i, 1)));
+            cumul_are_lower_bits_zero_or_tainted.append(module->And(NEW_ID, cumul_are_lower_bits_zero_or_tainted[i-1], are_s_bits_zero_or_tainted.extract(i-1, 1)));
+            cumul_are_lower_bits_zero.append(module->And(NEW_ID, cumul_are_lower_bits_zero[i-1], not_s.extract(i-1, 1)));
+            cumul_is_some_lower_bit_tainted.append(module->Or(NEW_ID, cumul_is_some_lower_bit_tainted[i-1], port_taints[S][taint_id].extract(i-1, 1)));
         }
 
-        // Its minimality is tainted is the corresponding bit is tainted and all the lower bits are tainted or zero.
-        RTLIL::SigSpec is_s_minimality_tainted = module->And(NEW_ID, port_taints[S][taint_id], cumul_are_lower_bits_zero_or_tainted);
+        // Its minimality is tainted if the corresponding bit is tainted and all the lower bits are tainted or zero...
+        // OR if the corresponding bit is 1 and some lower bit is zero and no lower bit is 1.
+        RTLIL::SigSpec is_s_minimality_tainted_impl = module->And(NEW_ID, ports[S], cumul_is_some_lower_bit_tainted);
+        RTLIL::SigSpec is_s_minimality_tainted_precheck = module->Or(NEW_ID, is_s_minimality_tainted_impl, port_taints[S][taint_id]);
+        RTLIL::SigSpec is_s_minimality_tainted = module->And(NEW_ID, is_s_minimality_tainted_precheck, cumul_are_lower_bits_zero_or_tainted);
 
         RTLIL::SigSpec extended_a_taint(port_taints[A][taint_id]);
         if (a_size == expected_a_size) {
@@ -100,7 +110,7 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         std::vector<RTLIL::SigSpec> implicit_prerotate; // eventualy should have size 1 << s_size
         std::vector<RTLIL::SigSpec> explicit_prereduce;
 
-        RTLIL::SigSpec is_s_minimality_true_or_tainted = module->Or(NEW_ID, is_s_minimality_tainted, ports[S]);
+        RTLIL::SigSpec is_s_minimality_true_or_tainted = module->Or(NEW_ID, is_s_minimality_tainted, module->And(NEW_ID, ports[S], cumul_are_lower_bits_zero));
         for (unsigned int id_in_s = 0; id_in_s < s_size; id_in_s++) {
             // Implicit flows: Taints coming from the data input port.
             implicit_prerotate.push_back(module->Mux(NEW_ID, ports[Y], b_slices[id_in_s], is_s_minimality_tainted[id_in_s]));
@@ -108,7 +118,7 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
             // explicit_prereduce.push_back(module->Mux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S0, data_width), b_taint_slices[id_in_s], is_s_minimality_true_or_tainted[id_in_s]));
             explicit_prereduce.push_back(module->And(NEW_ID, b_taint_slices[id_in_s], RTLIL::SigSpec(is_s_minimality_true_or_tainted[id_in_s], data_width)));
         }
-        RTLIL::SigBit can_s_be_zero = module->ReduceOr(NEW_ID, are_s_bits_zero_or_tainted);
+        RTLIL::SigBit can_s_be_zero = module->ReduceAnd(NEW_ID, are_s_bits_zero_or_tainted);
 
         // Implicit flows from A.
         implicit_prerotate.push_back(module->Mux(NEW_ID, ports[Y], extended_a, can_s_be_zero));
