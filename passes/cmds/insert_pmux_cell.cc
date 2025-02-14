@@ -42,11 +42,11 @@ private:
 		std::vector<RTLIL::Wire*> wires(module->wires());
 		std::vector<RTLIL::Cell*> cells(module->cells());
 
-		// log("Removed original cells.\n");
-		// while (cells.size() > 0 && cells[0]->type != ID($dummy)) {
-		// 	module->remove(cells[0]);
-		// }
-		// log("Removed original cells.\n");
+		if (cells.size() != 1)
+			log_cmd_error("The top module must contain exactly one dummy cell.\n");
+
+		module->remove(cells[0]);
+		log("Removed original cell.\n");
 
 		int multiple_id = 0;
 		do {
