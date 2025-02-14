@@ -29,6 +29,7 @@ PRIVATE_NAMESPACE_BEGIN
 struct InsertDemuxCellWorker {
 private:
 	RTLIL::Module *module = nullptr;
+	bool is_multiple = false;
 	const RTLIL::IdString insert_demux_cell_attribute_name = ID(insert_demux_cell);
 
 	void insert_demux_cell() {
@@ -41,52 +42,81 @@ private:
 		std::vector<RTLIL::Wire*> wires(module->wires());
 		std::vector<RTLIL::Cell*> cells(module->cells());
 
-		module->remove(cells[0]);
-		log("Removed original cell.\n");
+		while (cells.size() > 0 && cells[0]->type != ID($dummy))
+			module->remove(cells[0]);
+		log("Removed original cells.\n");
 
-		RTLIL::Wire* wire_a_i = NULL;
-		RTLIL::Wire* wire_s_i = NULL;
-		RTLIL::Wire* wire_y_o = NULL;
+		int multiple_id = 0;
+		do {
+			RTLIL::Wire* wire_a_i = NULL;
+			RTLIL::Wire* wire_s_i = NULL;
+			RTLIL::Wire* wire_y_o = NULL;
 
-		for(unsigned int i = 0; i < wires.size(); i++) {
-			if (wires[i]->name == ID(a_i))
-				wire_a_i = wires[i];
-			else if (wires[i]->name == ID(s_i))
-				wire_s_i = wires[i];
-			else if (wires[i]->name == ID(y_o))
-				wire_y_o = wires[i];
-		}
+			std::string wire_a_i_name;
+			std::string wire_s_i_name;
+			std::string wire_y_o_name;
 
-		if (wire_a_i == NULL || wire_s_i == NULL || wire_y_o == NULL) {
-			if (wire_a_i == NULL) {
-				log("Missing wire a_i.\n");
+			if (is_multiple) {
+				wire_a_i_name = stringf("a_i_%d", multiple_id);
+				wire_s_i_name = stringf("s_i_%d", multiple_id);
+				wire_y_o_name = stringf("y_o_%d", multiple_id);
+			} else {
+				wire_a_i_name = "a_i";
+				wire_s_i_name = "s_i";
+				wire_y_o_name = "y_o";
 			}
-			if (wire_s_i == NULL) {
-				log("Missing wire s_i.\n");
+
+			for(unsigned int i = 0; i < wires.size(); i++) {
+				if (wires[i]->name == RTLIL::escape_id(wire_a_i_name))
+					wire_a_i = wires[i];
+				else if (wires[i]->name == RTLIL::escape_id(wire_s_i_name))
+					wire_s_i = wires[i];
+				else if (wires[i]->name == RTLIL::escape_id(wire_y_o_name))
+					wire_y_o = wires[i];
 			}
-			if (wire_y_o == NULL) {
-				log("Missing wire y_o.\n");
+
+			if (wire_a_i == NULL || wire_s_i == NULL || wire_y_o == NULL) {
+				if (is_multiple) {
+					if (multiple_id == 0) {
+						log_cmd_error("Missing wires in the module (currently running with `-multiple` flag).\n");
+					} else {
+						break;
+					}
+				}
+				if (!is_multiple) {
+					if (wire_a_i == NULL) {
+						log("Missing wire a_i.\n");
+					}
+					if (wire_s_i == NULL) {
+						log("Missing wire s_i.\n");
+					}
+					if (wire_y_o == NULL) {
+						log("Missing wire y_o.\n");
+					}
+					log_cmd_error("Missing wires in the module.\n");
+				}
 			}
-			log_cmd_error("Missing wires in the module.\n");
-		}
 
-		RTLIL::Cell* new_cell;
-		RTLIL::Const rst_val_sigspec;
+			RTLIL::Cell* new_cell;
+			RTLIL::Const rst_val_sigspec;
 
-		new_cell = module->addDemux(NEW_ID, wire_a_i, wire_s_i, wire_y_o);
-		for (auto &param: module->parameter_default_values)
-			new_cell->setParam(param.first, param.second);
+			new_cell = module->addDemux(NEW_ID, wire_a_i, wire_s_i, wire_y_o);
+			for (auto &param: module->parameter_default_values)
+				new_cell->setParam(param.first, param.second);
 
-		for (auto &param: new_cell->parameters) {
-			log("New cell param: %s = %d\n", param.first.c_str(), param.second.as_int());
-		}
+			for (auto &param: new_cell->parameters) {
+				log("New cell param: %s = %d\n", param.first.c_str(), param.second.as_int());
+			}
 
-		module->set_bool_attribute(insert_demux_cell_attribute_name, true);
+			module->set_bool_attribute(insert_demux_cell_attribute_name, true);
+			multiple_id++;
+		} while (is_multiple);
 	}
 
 public:
-	InsertDemuxCellWorker(RTLIL::Module *_module) {
+	InsertDemuxCellWorker(RTLIL::Module *_module, bool _is_multiple) {
 		module = _module;
+		is_multiple = _is_multiple;
 		insert_demux_cell();
 	}
 };
@@ -98,11 +128,12 @@ struct InsertDemuxCellPass : public Pass {
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
-		log("    insert_demux_cell <command> [options] [selection]\n");
+		log("    insert_demux_cell --multiple\n");
 		log("\n");
 		log("Add a demux cell in each module of the design.\n");
 		log("This pass has been designed for testing the demux implementation.\n");
 		log("The top module must contain exactly one dummy cell.\n");
+		log("	-multiple: instead of looking for a_i, etc., will look for a_i_0, a_i_1, etc. until not finding them anymore\n");
 		log("\n");
 	}
 
@@ -110,10 +141,17 @@ struct InsertDemuxCellPass : public Pass {
 	{
 		log_header(design, "Executing insert_demux_cell pass.\n");
 
+		bool is_multiple = false;
+		std::vector<std::string>::size_type argidx;
+
+		for (argidx = 1; argidx < args.size(); argidx++)
+			if (args[argidx] == "-multiple")
+				is_multiple = true;
+
 		if (GetSize(design->selected_modules()) == 0)
 			log_cmd_error("Can't operate on an empty selection!\n");
 
-		InsertDemuxCellWorker worker(design->top_module());
+		InsertDemuxCellWorker worker(design->top_module(), is_multiple);
 	}
 } InsertDemuxCellPass;
 
