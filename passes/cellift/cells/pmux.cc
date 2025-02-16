@@ -35,6 +35,9 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
         log("S size: %d, S_WIDTH param: %d.\n", s_size, s_width_param);
         log_cmd_error("In $demux, the size of the S port must match the S_WIDTH parameter.\n");
     }
+    if (s_size > 64) {
+        log_cmd_error("The size of the S port must be at most 64.\n");
+    }
 
     RTLIL::SigSpec extended_a(ports[A]);
     if (a_size == expected_a_size) {
@@ -63,7 +66,11 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
 
     for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
         RTLIL::SigSpec not_s = module->Not(NEW_ID, ports[S]);
+        // RTLIL::SigSpec not_s_taint = module->Not(NEW_ID, port_taints[S][taint_id]);
         RTLIL::SigSpec are_s_bits_zero_or_tainted = module->Or(NEW_ID, not_s, port_taints[S][taint_id]);
+        // RTLIL::SigSpec are_s_bits_one_or_not_tainted = module->Or(NEW_ID, ports[S], not_s_taint);
+
+        // Option A: Traditional chain of ANDs and ORs
         RTLIL::SigSpec cumul_are_lower_bits_zero_or_tainted;
         RTLIL::SigSpec cumul_are_lower_bits_zero;
         RTLIL::SigSpec cumul_is_some_lower_bit_tainted;
@@ -75,6 +82,21 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
             cumul_are_lower_bits_zero.append(module->And(NEW_ID, cumul_are_lower_bits_zero[i-1], not_s.extract(i-1, 1)));
             cumul_is_some_lower_bit_tainted.append(module->Or(NEW_ID, cumul_is_some_lower_bit_tainted[i-1], port_taints[S][taint_id].extract(i-1, 1)));
         }
+
+        // // Option B: Use PMUXes. Better for larger cells
+        // RTLIL::SigSpec util_pmux_b;
+        // unsigned int b_cumul = 0;
+        // for (unsigned int id_in_s = 0; id_in_s < s_size; id_in_s++) {
+        //     b_cumul = (b_cumul << 1) | 1;
+        //     util_pmux_b.append(RTLIL::SigSpec(b_cumul, s_size));
+        // }
+        // RTLIL::SigSpec cumul_are_lower_bits_zero_or_tainted;
+        // RTLIL::SigSpec cumul_are_lower_bits_zero;
+        // RTLIL::SigSpec cumul_is_some_lower_bit_tainted;
+        // cumul_are_lower_bits_zero = module->Pmux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S1, s_size), util_pmux_b, ports[S]);
+        // cumul_are_lower_bits_zero_or_tainted = module->Pmux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S1, s_size), util_pmux_b, are_s_bits_one_or_not_tainted);
+        // RTLIL::SigSpec cumul_is_some_lower_bit_tainted_neg = module->Pmux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S1, s_size), util_pmux_b, port_taints[S][taint_id]);
+        // cumul_is_some_lower_bit_tainted = module->Not(NEW_ID, cumul_is_some_lower_bit_tainted_neg);
 
         // Its minimality is tainted if the corresponding bit is tainted and all the lower bits are tainted or zero...
         // OR if the corresponding bit is 1 and some lower bit is zero and no lower bit is 1.
@@ -118,7 +140,7 @@ bool cellift_pmux(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tai
             // explicit_prereduce.push_back(module->Mux(NEW_ID, RTLIL::SigSpec(RTLIL::State::S0, data_width), b_taint_slices[id_in_s], is_s_minimality_true_or_tainted[id_in_s]));
             explicit_prereduce.push_back(module->And(NEW_ID, b_taint_slices[id_in_s], RTLIL::SigSpec(is_s_minimality_true_or_tainted[id_in_s], data_width)));
         }
-        RTLIL::SigBit can_s_be_zero = module->ReduceAnd(NEW_ID, are_s_bits_zero_or_tainted);
+        RTLIL::SigBit can_s_be_zero = module->Eq(NEW_ID, are_s_bits_zero_or_tainted, RTLIL::SigSpec(RTLIL::State::S1, s_size));
 
         // Implicit flows from A.
         implicit_prerotate.push_back(module->Mux(NEW_ID, ports[Y], extended_a, can_s_be_zero));
