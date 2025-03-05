@@ -26,7 +26,7 @@ bool cellift_shift_imprecise(RTLIL::Module *module, RTLIL::Cell *cell, unsigned 
 
     for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
         // (a) Check whether B is tainted (in this case, the output will be fully tainted).
-        RTLIL::SigBit  is_b_tainted = module->ReduceOr(NEW_ID, port_taints[A][taint_id]);
+        RTLIL::SigBit  is_b_tainted = module->ReduceOr(NEW_ID, port_taints[B][taint_id]);
         // Prepare a SigSpec as wide as the output. This will be Or'ed with the output of (b).
         RTLIL::SigSpec is_b_tainted_sigspec = RTLIL::SigSpec(is_b_tainted, output_width);
 

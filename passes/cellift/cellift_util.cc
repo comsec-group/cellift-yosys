@@ -5,6 +5,7 @@
 #include "kernel/yosys.h"
 
 USING_YOSYS_NAMESPACE
+const RTLIL::IdString cellift_attribute_name = ID(cellift);
 
 // Checks whether the signal name is included in the exclude-signals command line argument.
 bool is_signal_excluded(std::vector<string> *excluded_signals, string signal_name) {
@@ -34,6 +35,7 @@ std::vector<RTLIL::SigSpec> get_corresponding_taint_signals(RTLIL::Module* modul
                 RTLIL::Wire *w = module->wire(get_wire_taint_idstring(chunk_it.wire->name.str(), taint_id));
                 if (w == nullptr) {
                     w = module->addWire(get_wire_taint_idstring(chunk_it.wire->name.str(), taint_id), chunk_it.wire);
+                    w->set_bool_attribute(cellift_attribute_name);
                     w->port_input = false;
                     w->port_output = false;
                 }

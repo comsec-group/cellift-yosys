@@ -46,11 +46,14 @@ bool cellift_adffe(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_ta
         RTLIL::SigSpec d_taint_or_q_taint = module->Or(NEW_ID, port_taints[D][taint_id], port_taints[Q][taint_id]);
         RTLIL::SigSpec d_q_tainted_or_distinct = module->Or(NEW_ID, d_xor_q, d_taint_or_q_taint);
 
+        RTLIL::SigSpec en_spec_taint;
+        en_spec_taint = RTLIL::SigSpec(port_taints[EN][taint_id], data_width);
+
         // Intermediate signals to OR together.
         RTLIL::SigSpec reduce_or_arr[3];
         reduce_or_arr[0] = module->And(NEW_ID, en_spec, port_taints[D][taint_id]);
         reduce_or_arr[1] = module->And(NEW_ID, not_en_spec, port_taints[Q][taint_id]);
-        reduce_or_arr[2] = module->And(NEW_ID, d_q_tainted_or_distinct, port_taints[EN][taint_id]);
+        reduce_or_arr[2] = module->And(NEW_ID, d_q_tainted_or_distinct, en_spec_taint);
 
         RTLIL::SigSpec reduce_or_interm = module->Or(NEW_ID, reduce_or_arr[0], reduce_or_arr[1]);
         RTLIL::SigSpec reduce_or_output = module->Or(NEW_ID, reduce_or_interm, reduce_or_arr[2]);
