@@ -26,10 +26,10 @@ bool cellift_mul(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tain
 	for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
 		RTLIL::SigSpec reduced_a, reduced_b;
 
-		module->addReduceOr(NEW_ID, port_taints[A][taint_id], reduced_a);
-		module->addReduceOr(NEW_ID, port_taints[B][taint_id], reduced_b);
+		RTLIL::SigSpec reduced_a = module->ReduceOr(NEW_ID, port_taints[A][taint_id]);
+		RTLIL::SigSpec reduced_b = module->ReduceOr(NEW_ID, port_taints[B][taint_id]);
 		module->addOr(NEW_ID, reduced_a, reduced_b, port_taints[Y][taint_id][0]);
-		// For the other bits, taint the output as .
+		// For the other bits, taint the output as well.
 		if (ports[Y].size() > 1)
 			module->connect(port_taints[Y][taint_id].extract_end(1), RTLIL::SigSpec(port_taints[Y][taint_id][0], ports[Y].size() - 1));
 	}
