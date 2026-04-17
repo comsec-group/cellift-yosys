@@ -24,8 +24,6 @@ bool cellift_mul(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tain
 		port_taints[i] = get_corresponding_taint_signals(module, excluded_signals, ports[i], num_taints);
 
 	for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
-		RTLIL::SigSpec reduced_a, reduced_b;
-
 		RTLIL::SigSpec reduced_a = module->ReduceOr(NEW_ID, port_taints[A][taint_id]);
 		RTLIL::SigSpec reduced_b = module->ReduceOr(NEW_ID, port_taints[B][taint_id]);
 		module->addOr(NEW_ID, reduced_a, reduced_b, port_taints[Y][taint_id][0]);
