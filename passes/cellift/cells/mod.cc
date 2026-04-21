@@ -22,23 +22,12 @@ bool cellift_mod(RTLIL::Module *module, RTLIL::Cell *cell, unsigned int num_tain
     for (unsigned int i = 0; i < NUM_PORTS; ++i)
         port_taints[i] = get_corresponding_taint_signals(module, excluded_signals, ports[i], num_taints);
 
-    int output_width = ports[Y].size();
-
     for (unsigned int taint_id = 0; taint_id < num_taints; taint_id++) {
-        // (a) Check whether B is tainted (in this case, the output will be fully tainted).
-        RTLIL::SigBit  is_b_tainted = module->ReduceOr(NEW_ID, port_taints[B][taint_id]);
-        // Prepare a SigSpec as wide as the output. This will be Or'ed with the output of (b).
-        RTLIL::SigSpec is_b_tainted_sigspec = RTLIL::SigSpec(is_b_tainted, output_width);
-
-        // (b) Apply an identical $mod to A's taint input.
-        RTLIL::Wire* taint_mod_wire = module->addWire(NEW_ID, output_width);
-        RTLIL::Cell* taint_mod_cell = module->addMod(NEW_ID, port_taints[A][taint_id], ports[B], taint_mod_wire);
-        for (auto &param: cell->parameters)
-            taint_mod_cell->setParam(param.first, param.second);
-        RTLIL::SigSpec taint_mod_sigspec(taint_mod_wire);
-
-        // Disjunct (a) and (b).
-        module->addOr(NEW_ID, is_b_tainted_sigspec, taint_mod_sigspec, port_taints[Y][taint_id]);
+        RTLIL::SigSpec reduced_a = module->ReduceOr(NEW_ID, port_taints[A][taint_id]);
+        RTLIL::SigSpec reduced_b = module->ReduceOr(NEW_ID, port_taints[B][taint_id]);
+        module->addOr(NEW_ID, reduced_a, reduced_b, port_taints[Y][taint_id][0]);
+        if (ports[Y].size() > 1)
+            module->connect(port_taints[Y][taint_id].extract_end(1), RTLIL::SigSpec(port_taints[Y][taint_id][0], ports[Y].size() - 1));
     }
 
     return true;
